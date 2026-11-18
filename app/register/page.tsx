@@ -34,7 +34,14 @@ function RegisterForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error?.message || 'Registration failed');
+        let msg = data.error?.message;
+        if (data.error?.details && typeof data.error.details === 'object') {
+          const detailStrings = Object.values(data.error.details).flat().filter(Boolean);
+          if (detailStrings.length > 0) {
+            msg = detailStrings.join('. ');
+          }
+        }
+        throw new Error(msg || 'Registration failed');
       }
 
       // Automatically sign in after registration
@@ -124,13 +131,17 @@ function RegisterForm() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-mono text-neutral-300 flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-neutral-500" />
-                <span>Password</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-mono text-neutral-300 flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5 text-neutral-500" />
+                  <span>Password</span>
+                </label>
+                <span className="text-[10px] text-neutral-500 font-mono">min. 6 chars</span>
+              </div>
               <Input
                 type="password"
                 required
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"

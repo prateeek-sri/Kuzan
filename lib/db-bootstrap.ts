@@ -166,6 +166,21 @@ export async function ensureDatabaseSchema(prisma: PrismaClient): Promise<void> 
         CREATE INDEX IF NOT EXISTS "ai_defect_cache_filePath_idx" ON "ai_defect_cache"("filePath");
       `);
 
+      // 10. Default Analyst Demo User
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "users" ("id", "username", "email", "passwordHash", "role", "createdAt", "updatedAt")
+        VALUES (
+          'usr_demo_analyst_001',
+          'analyst',
+          'analyst@bugpulse.ai',
+          '$2a$10$WScpqZqjQRH/poUypk6EQeGoJlXpYtuOrUu0EaYdhWg343kZq8j1G',
+          'DEVELOPER',
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("email") DO NOTHING;
+      `);
+
       console.log('[db-bootstrap] PostgreSQL schema verified and synchronized.');
     } catch (err: unknown) {
       console.warn('[db-bootstrap] Schema check notice:', err instanceof Error ? err.message : String(err));
