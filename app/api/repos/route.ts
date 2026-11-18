@@ -91,8 +91,11 @@ export async function GET() {
       };
     });
 
-    // If database has no custom repositories yet, show standard reference analyses
-    const finalRepositories = result.length > 0 ? result : SAMPLE_REPOSITORIES;
+    // Combine custom analyzed repositories with sample benchmark repositories
+    const sampleAdditions = SAMPLE_REPOSITORIES.filter(
+      (s) => !result.some((r) => r.owner === s.owner && r.name === s.name)
+    );
+    const finalRepositories = [...result, ...sampleAdditions];
 
     return NextResponse.json({ repositories: finalRepositories }, { status: 200 });
   } catch (error: any) {

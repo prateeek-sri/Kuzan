@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
@@ -149,12 +149,12 @@ async function runAnalysisPipeline(
       data: { status: 'EXTRACTING_METRICS' },
     });
 
-    const filesToAnalyze = fileEntries.slice(0, 50);
+    const filesToAnalyze = fileEntries.slice(0, 25);
     const repoFiles: RepoSourceFile[] = [];
 
-    // Fetch file contents in controlled batches of 5
-    for (let i = 0; i < filesToAnalyze.length; i += 5) {
-      const batch = filesToAnalyze.slice(i, i + 5);
+    // Fetch file contents in controlled batches of 10 for fast completion on serverless lambdas
+    for (let i = 0; i < filesToAnalyze.length; i += 10) {
+      const batch = filesToAnalyze.slice(i, i + 10);
       const batchResults = await Promise.all(
         batch.map(async (entry) => {
           try {
@@ -516,18 +516,29 @@ export async function POST(req: Request) {
       },
     });
 
-    // 6. Launch pipeline asynchronously in background
-    runAnalysisPipeline(
-      run.id,
-      repository.id,
-      meta.owner,
-      meta.repo,
-      activeBranch,
-      selectedModel as MLModelType,
-      githubToken,
-      nvidiaApiKey,
-      meta.defaultBranch
-    );
+    // 6. Launch pipeline asynchronously using Next.js after() to keep lambda active on Vercel
+    const launchBackgroundPipeline = () => {
+      runAnalysisPipeline(
+        run.id,
+        repository.id,
+        meta.owner,
+        meta.repo,
+        activeBranch,
+        selectedModel as MLModelType,
+        githubToken,
+        nvidiaApiKey,
+        meta.defaultBranch
+      ).catch((err) => console.error('[Pipeline Background Error]:', err));
+    };
+
+    try {
+      after(async () => {
+        await launchBackgroundPipeline();
+      });
+    } catch {
+      // In test context outside of Next.js server request scope, launch detached promise
+      launchBackgroundPipeline();
+    }
 
     // 7. Return 202 Accepted immediately
     return NextResponse.json(
