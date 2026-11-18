@@ -181,6 +181,25 @@ export async function ensureDatabaseSchema(prisma: PrismaClient): Promise<void> 
         ON CONFLICT ("email") DO NOTHING;
       `);
 
+      // 11. Seed Sample Repositories & Prediction Runs for History
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "repositories" ("id", "name", "owner", "url", "defaultBranch", "isPrivate", "lastAnalyzedAt", "createdAt", "updatedAt")
+        VALUES 
+          ('repo_sample_react_001', 'react', 'facebook', 'https://github.com/facebook/react', 'main', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          ('repo_sample_nextjs_002', 'next.js', 'vercel', 'https://github.com/vercel/next.js', 'canary', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          ('repo_sample_tensorflow_003', 'tensorflow', 'tensorflow', 'https://github.com/tensorflow/tensorflow', 'master', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT ("owner", "name") DO NOTHING;
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "prediction_runs" ("id", "repoId", "modelType", "modelVersion", "status", "totalFiles", "defectProneCount", "averageComplexity", "totalChurnLines", "completedAt", "createdAt")
+        VALUES 
+          ('sample-audit-001', 'repo_sample_react_001', 'AutoSelectBest', '1.0.0', 'COMPLETED', 42, 6, 14.8, 1250, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          ('sample-audit-nextjs-002', 'repo_sample_nextjs_002', 'RandomForest', '1.0.0', 'COMPLETED', 88, 3, 8.2, 3420, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          ('sample-audit-tensorflow-003', 'repo_sample_tensorflow_003', 'XGBoost', '1.0.0', 'COMPLETED', 120, 18, 22.4, 8900, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT ("id") DO NOTHING;
+      `);
+
       console.log('[db-bootstrap] PostgreSQL schema verified and synchronized.');
     } catch (err: unknown) {
       console.warn('[db-bootstrap] Schema check notice:', err instanceof Error ? err.message : String(err));

@@ -22,6 +22,94 @@ export async function GET(
     });
 
     if (!run) {
+      // Graceful sample audit fallback for demo and onboarding inspection
+      if (id.startsWith('sample-')) {
+        return NextResponse.json(
+          {
+            analysisId: id,
+            status: 'COMPLETED',
+            progressPercent: 100,
+            statusMessage: 'Analysis completed successfully',
+            modelType: 'AutoSelectBest',
+            repo: {
+              id: 'repo_sample_react_001',
+              owner: 'facebook',
+              name: 'react',
+              url: 'https://github.com/facebook/react',
+              defaultBranch: 'main',
+            },
+            summary: {
+              totalFiles: 42,
+              analyzedFiles: 42,
+              defectProneFiles: 6,
+              averageComplexity: 14.8,
+              totalChurnLines: 1250,
+              lowRiskCount: 28,
+              mediumRiskCount: 8,
+              highRiskCount: 4,
+              criticalRiskCount: 2,
+            },
+            topVulnerableFiles: [
+              {
+                filePath: 'packages/react-reconciler/src/ReactFiberWorkLoop.js',
+                defectProbability: 0.94,
+                riskLevel: 'CRITICAL',
+                cyclomaticComplexity: 38.5,
+                commitCount: 240,
+                churnLines: 840,
+                bugFixCount: 14,
+                loc: 1240,
+                sloc: 980,
+                language: 'JavaScript',
+                rank: 1,
+                defects: [
+                  {
+                    id: 'def_sample_1',
+                    type: 'RaceCondition',
+                    severity: 'CRITICAL',
+                    title: 'Concurrent Mode Transition Race Condition',
+                    explanation: 'Concurrent scheduler can yield before commitRoot finishes updating fiber memoizedState',
+                    lineNumber: 412,
+                    buggyCodeSnippet: 'function commitRoot(root) {\n  const renderPriorityLevel = getCurrentUpdatePriority();\n  runWithPriority(renderPriorityLevel, commitRootImpl.bind(null, root));\n}',
+                    suggestedFixSnippet: 'function commitRoot(root) {\n  const renderPriorityLevel = getCurrentUpdatePriority();\n  if (root.flags & IncompleteWork) return;\n  runWithPriority(renderPriorityLevel, commitRootImpl.bind(null, root));\n}',
+                    unifiedDiff: '--- a/packages/react-reconciler/src/ReactFiberWorkLoop.js\n+++ b/packages/react-reconciler/src/ReactFiberWorkLoop.js\n@@ -412,3 +412,4 @@\n function commitRoot(root) {\n   const renderPriorityLevel = getCurrentUpdatePriority();\n+  if (root.flags & IncompleteWork) return;\n   runWithPriority(renderPriorityLevel, commitRootImpl.bind(null, root));\n }',
+                  },
+                ],
+              },
+              {
+                filePath: 'packages/react/src/ReactHooks.js',
+                defectProbability: 0.82,
+                riskLevel: 'HIGH',
+                cyclomaticComplexity: 21.0,
+                commitCount: 110,
+                churnLines: 320,
+                bugFixCount: 7,
+                loc: 480,
+                sloc: 390,
+                language: 'JavaScript',
+                rank: 2,
+                defects: [
+                  {
+                    id: 'def_sample_2',
+                    type: 'NullPointer',
+                    severity: 'HIGH',
+                    title: 'Unchecked Hook Dispatcher Dereference',
+                    explanation: 'resolveDispatcher() returns null when hook is called outside component render phase',
+                    lineNumber: 88,
+                    buggyCodeSnippet: 'const dispatcher = resolveDispatcher();\nreturn dispatcher.useState(initialState);',
+                    suggestedFixSnippet: 'const dispatcher = resolveDispatcher();\nif (!dispatcher) throw new Error("Invalid hook call: Hooks can only be called inside of the body of a function component.");\nreturn dispatcher.useState(initialState);',
+                    unifiedDiff: '--- a/packages/react/src/ReactHooks.js\n+++ b/packages/react/src/ReactHooks.js\n@@ -88,2 +88,3 @@\n const dispatcher = resolveDispatcher();\n+if (!dispatcher) throw new Error("Invalid hook call.");\n return dispatcher.useState(initialState);',
+                  },
+                ],
+              },
+            ],
+            createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000 + 45000).toISOString(),
+          },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
         {
           error: {

@@ -55,42 +55,40 @@ export async function aggregateRepositoryMetrics(
   // 3. Persist to PostgreSQL D2 Repo Metric DB if repoId provided
   if (options.persistToDatabase && options.repoId) {
     const repoId = options.repoId;
-    await prisma.$transaction(
-      metrics.map((m) =>
-        prisma.fileMetric.upsert({
-          where: {
-            repoId_filePath: {
-              repoId,
-              filePath: m.filePath,
-            },
-          },
-          update: {
-            language: files.find((f) => f.path === m.filePath)?.language ?? 'generic',
-            loc: m.loc,
-            sloc: m.sloc,
-            cyclomaticComplexity: m.cyclomaticComplexity,
-            halsteadVolume: m.halsteadVolume,
-            commitCount: m.commitCount,
-            churnLines: m.churnLines,
-            authorCount: m.authorCount,
-            bugFixCount: m.bugFixCount,
-          },
-          create: {
+    for (const m of metrics) {
+      await prisma.fileMetric.upsert({
+        where: {
+          repoId_filePath: {
             repoId,
             filePath: m.filePath,
-            language: files.find((f) => f.path === m.filePath)?.language ?? 'generic',
-            loc: m.loc,
-            sloc: m.sloc,
-            cyclomaticComplexity: m.cyclomaticComplexity,
-            halsteadVolume: m.halsteadVolume,
-            commitCount: m.commitCount,
-            churnLines: m.churnLines,
-            authorCount: m.authorCount,
-            bugFixCount: m.bugFixCount,
           },
-        })
-      )
-    );
+        },
+        update: {
+          language: files.find((f) => f.path === m.filePath)?.language ?? 'generic',
+          loc: m.loc,
+          sloc: m.sloc,
+          cyclomaticComplexity: m.cyclomaticComplexity,
+          halsteadVolume: m.halsteadVolume,
+          commitCount: m.commitCount,
+          churnLines: m.churnLines,
+          authorCount: m.authorCount,
+          bugFixCount: m.bugFixCount,
+        },
+        create: {
+          repoId,
+          filePath: m.filePath,
+          language: files.find((f) => f.path === m.filePath)?.language ?? 'generic',
+          loc: m.loc,
+          sloc: m.sloc,
+          cyclomaticComplexity: m.cyclomaticComplexity,
+          halsteadVolume: m.halsteadVolume,
+          commitCount: m.commitCount,
+          churnLines: m.churnLines,
+          authorCount: m.authorCount,
+          bugFixCount: m.bugFixCount,
+        },
+      });
+    }
   }
 
   return metrics;
