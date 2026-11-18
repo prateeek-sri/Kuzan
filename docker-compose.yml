@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: bugpulse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Prateek@123
+      POSTGRES_DB: ai_bug_prediction
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_bug_prediction"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bugpulse-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:Prateek%40123@postgres:5432/ai_bug_prediction?schema=public
+      - NEXTAUTH_SECRET=ai-bug-prediction-super-secure-production-secret-key-32chars
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+

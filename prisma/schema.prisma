@@ -1,0 +1,187 @@
+// Prisma Schema for AI Bug Prediction System
+// Standard: spec-driven-development & api-and-interface-design
+// Models D1 (User DB), D2 (Repo Metric DB), D3 (Prediction DB), D4 (Model Store)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// D1: User & Authentication Data Store
+// ============================================================================
+
+model User {
+  id           String       @id @default(uuid())
+  username     String       @unique
+  email        String       @unique
+  passwordHash String
+  role         String       @default("DEVELOPER")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  sessions     Session[]
+  repositories Repository[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@map("sessions")
+}
+
+// ============================================================================
+// D2: Repository & Code Metrics Data Store
+// ============================================================================
+
+model Repository {
+  id             String          @id @default(uuid())
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name           String
+  owner          String
+  url            String
+  defaultBranch  String          @default("main")
+  isPrivate      Boolean         @default(false)
+  lastAnalyzedAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  fileMetrics    FileMetric[]
+  predictionRuns PredictionRun[]
+
+  @@unique([owner, name])
+  @@index([url])
+  @@map("repositories")
+}
+
+model FileMetric {
+  id                   String     @id @default(uuid())
+  repoId               String
+  repository           Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  filePath             String
+  language             String
+  loc                  Int        @default(0)
+  sloc                 Int        @default(0)
+  cyclomaticComplexity Float      @default(1.0)
+  halsteadVolume       Float?
+  commitCount          Int        @default(0)
+  churnLines           Int        @default(0)
+  authorCount          Int        @default(1)
+  bugFixCount          Int        @default(0)
+  createdAt            DateTime   @default(now())
+
+  @@unique([repoId, filePath])
+  @@index([repoId])
+  @@index([language])
+  @@map("file_metrics")
+}
+
+// ============================================================================
+// D3: Bug Prediction & Risk Assessment Data Store
+// ============================================================================
+
+enum AnalysisStatus {
+  QUEUED
+  FETCHING
+  EXTRACTING_METRICS
+  PREDICTING
+  COMPLETED
+  FAILED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model PredictionRun {
+  id                String           @id @default(uuid())
+  repoId            String
+  repository        Repository       @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  modelType         String           @default("AutoSelectBest")
+  modelVersion      String           @default("1.0.0")
+  status            AnalysisStatus   @default(QUEUED)
+  totalFiles        Int              @default(0)
+  defectProneCount  Int              @default(0)
+  averageComplexity Float            @default(0.0)
+  totalChurnLines   Int              @default(0)
+  errorMessage      String?
+  completedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  predictions       FilePrediction[]
+
+  @@index([repoId])
+  @@index([status])
+  @@map("prediction_runs")
+}
+
+model FilePrediction {
+  id                String        @id @default(uuid())
+  runId             String
+  predictionRun     PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  filePath          String
+  defectProbability Float         @default(0.0) // 0.0 - 1.0
+  riskLevel         RiskLevel     @default(LOW)
+  riskRank          Int           @default(1)
+  defects           Json?
+  createdAt         DateTime      @default(now())
+
+  @@index([runId])
+  @@index([riskLevel])
+  @@map("file_predictions")
+}
+
+// ============================================================================
+// D4: Machine Learning Model Store & Registry
+// ============================================================================
+
+model ModelRegistry {
+  id           String   @id @default(uuid())
+  modelType    String // "RandomForest", "XGBoost", "LightGBM", etc.
+  version      String
+  accuracy     Float    @default(0.0)
+  f1Score      Float    @default(0.0)
+  rocAuc       Float    @default(0.0)
+  precision    Float    @default(0.0)
+  recall       Float    @default(0.0)
+  artifactPath String // Filepath to .joblib artifact
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([modelType, version])
+  @@map("model_registry")
+}
+
+// ============================================================================
+// D5: AI Semantic Defect & Remediation Cache (Deduplication Store)
+// ============================================================================
+
+model AiDefectCache {
+  id          String   @id @default(uuid())
+  contentHash String   @unique // SHA-256 hash of (filePath + sourceCode + model)
+  filePath    String
+  language    String
+  model       String   @default("meta/llama-3.1-70b-instruct")
+  defects     Json     // Cached array of CodeDefectItem
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contentHash])
+  @@index([filePath])
+  @@map("ai_defect_cache")
+}
+
