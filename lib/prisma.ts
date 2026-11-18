@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import { ensureDatabaseSchema } from './db-bootstrap';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  schemaBootstrapped: boolean | undefined;
 };
 
 // Automatically adapt to Neon Postgres (POSTGRES1_... or POSTGRES_...) on Vercel,
@@ -15,7 +17,7 @@ const resolvedDbUrl =
   process.env.POSTGRES_URL ||
   process.env.DATABASE_URL;
 
-export const prisma =
+const rawPrisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     datasources: resolvedDbUrl
@@ -29,5 +31,45 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+  globalForPrisma.prisma = rawPrisma;
 }
+
+// Proxied prisma client that automatically ensures required tables exist on first invocation
+export const prisma: PrismaClient = new Proxy(rawPrisma, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+
+    // If accessing a model property (e.g. prisma.user, prisma.repository, prisma.filePrediction)
+    if (
+      typeof prop === 'string' &&
+      !prop.startsWith('$') &&
+      !prop.startsWith('_') &&
+      typeof value === 'object' &&
+      value !== null
+    ) {
+      return new Proxy(value, {
+        get(modelTarget, actionProp, modelReceiver) {
+          const action = Reflect.get(modelTarget, actionProp, modelReceiver);
+          if (typeof action === 'function') {
+            return async (...args: unknown[]) => {
+              if (!globalForPrisma.schemaBootstrapped && resolvedDbUrl) {
+                try {
+                  await ensureDatabaseSchema(rawPrisma);
+                  globalForPrisma.schemaBootstrapped = true;
+                } catch {
+                  // Fall through to query if bootstrap encounters notice
+                }
+              }
+              return (action as (...a: unknown[]) => unknown).apply(modelTarget, args);
+            };
+          }
+          return action;
+        },
+      });
+    }
+
+    return value;
+  },
+}) as unknown as PrismaClient;
+
+export { ensureDatabaseSchema };
